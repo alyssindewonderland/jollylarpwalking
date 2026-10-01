@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 
 export const SESSION_COOKIE = "stride_session";
-export const ADMIN_COOKIE = "stride_admin";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // 1 year, "nobody should ever log in again"
 
 function secret(): string {
@@ -17,7 +16,7 @@ function toBase64Url(bytes: ArrayBuffer): string {
 }
 
 // Web Crypto (not Node's `crypto` module) so this works identically in Node route
-// handlers and in the Edge-runtime middleware that guards member/admin routes.
+// handlers and in the Edge-runtime middleware that guards member routes.
 async function sign(value: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
@@ -62,25 +61,4 @@ export async function setSessionCookie(memberId: string) {
     maxAge: SESSION_MAX_AGE_SECONDS,
     path: "/",
   });
-}
-
-export async function isAdminSession(): Promise<boolean> {
-  const store = await cookies();
-  return store.get(ADMIN_COOKIE)?.value === process.env.ADMIN_SECRET;
-}
-
-export async function setAdminCookie() {
-  const store = await cookies();
-  store.set(ADMIN_COOKIE, process.env.ADMIN_SECRET ?? "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: SESSION_MAX_AGE_SECONDS,
-    path: "/",
-  });
-}
-
-/** 6-digit numeric pairing code, for carrying a session from Safari into the installed PWA. */
-export function generatePairingCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
 }

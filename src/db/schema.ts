@@ -19,7 +19,6 @@ export const members = pgTable("members", {
   source: text("source", { enum: ["shortcut", "manual"] }).notNull(),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   lastIngestAt: timestamp("last_ingest_at", { withTimezone: true }),
-  isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -103,15 +102,6 @@ export const notificationLog = pgTable("notification_log", {
   type: text("type").notNull(),
   dedupeKey: text("dedupe_key").notNull(),
   sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export const pairingCodes = pgTable("pairing_codes", {
-  code: text("code").primaryKey(),
-  memberId: uuid("member_id")
-    .notNull()
-    .references(() => members.id, { onDelete: "cascade" }),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  usedAt: timestamp("used_at", { withTimezone: true }),
 });
 
 export const settings = pgTable("settings", {

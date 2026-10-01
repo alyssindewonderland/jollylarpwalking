@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "@/db";
 import { members } from "@/db/schema";
-import { DevNotificationSender } from "@/components/admin/DevNotificationSender";
+import { DevNotificationSender } from "@/components/DevNotificationSender";
 
 export const dynamic = "force-dynamic";
 

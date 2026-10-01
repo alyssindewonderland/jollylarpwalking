@@ -136,6 +136,30 @@ export async function getMemberHistory(memberId: string, days: number) {
   return keys.map((date) => ({ date, steps: byDate.get(date) ?? 0 }));
 }
 
+/** Every logged day for a member, oldest first — for lifetime stats (badges, longest streak). */
+export async function getAllMemberSteps(memberId: string): Promise<{ date: string; steps: number }[]> {
+  const rows = await db
+    .select({ date: dailySteps.date, steps: dailySteps.steps })
+    .from(dailySteps)
+    .where(eq(dailySteps.memberId, memberId));
+  return rows.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Longest-ever run of consecutive days meeting the daily goal (not just the current streak). */
+export function longestStreak(history: { date: string; steps: number }[], dailyGoal: number): number {
+  let longest = 0;
+  let current = 0;
+  let prevDate: string | null = null;
+
+  for (const { date, steps } of history) {
+    const isConsecutive = prevDate !== null && datesBetween(prevDate, date).length === 2;
+    current = steps >= dailyGoal ? (isConsecutive ? current + 1 : 1) : 0;
+    longest = Math.max(longest, current);
+    prevDate = date;
+  }
+  return longest;
+}
+
 /** How many completed Mon-Sun weeks each member has won outright, for the profile screen. */
 export async function getCrownCounts(): Promise<Map<string, number>> {
   const rows = await db.select().from(dailySteps);

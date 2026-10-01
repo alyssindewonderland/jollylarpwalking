@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { isAdminSession } from "@/lib/auth";
+import { getSessionMemberId } from "@/lib/auth";
 import { sendToMember } from "@/lib/notifications/send";
 import {
   overtakeCopy,
@@ -29,7 +29,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  if (!(await isAdminSession())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!(await getSessionMemberId())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "invalid body" }, { status: 400 });

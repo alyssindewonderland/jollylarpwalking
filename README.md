@@ -3,6 +3,10 @@
 A private steps competition for ~5 friends. No sharing to Instagram or anywhere else — everything
 (leaderboard, trash talk, weekly results) lives in this app and is driven by push notifications.
 
+No accounts, no per-person invite links, no admin role — one shared 4-digit room PIN gets anyone
+in, and everyone can edit goals, challenges, and their own profile. Steps are logged manually
+(one tap a day); iOS Shortcut auto-sync exists in the codebase but is intentionally dormant.
+
 ## Stack
 
 - Next.js 16 (App Router) + TypeScript + Tailwind v4, deployed on Vercel.
@@ -22,7 +26,7 @@ A private steps competition for ~5 friends. No sharing to Instagram or anywhere 
 2. **Create a Neon Postgres project** at https://neon.tech (free tier is plenty for 5 people).
    Copy the **pooled** connection string from the Neon dashboard (Connect → pooled connection) and
    paste it into `.env.local` as `DATABASE_URL`. `.env.local` already has a generated
-   `SESSION_SECRET`, `ADMIN_SECRET`, `CRON_SECRET`, and VAPID keypair — only `DATABASE_URL` is
+   `SESSION_SECRET`, `ROOM_PIN`, `CRON_SECRET`, and VAPID keypair — only `DATABASE_URL` is
    missing. See `.env.example` for what every variable does.
 
 3. **Push the schema to Neon:**
@@ -34,82 +38,73 @@ A private steps competition for ~5 friends. No sharing to Instagram or anywhere 
    ```bash
    npm run seed
    ```
-   This prints each fake member's dev-only invite token to the console — useful for testing the
-   onboarding flow locally without touching real members.
+   This wipes and recreates everything, including clearing any group goal, so the home screen
+   starts clean (no "claimed space" for a goal until someone sets one).
 
 5. **Run it:**
    ```bash
    npm run dev
    ```
-   Open http://localhost:3000/admin and enter the `ADMIN_SECRET` from `.env.local` to create real
-   members and generate their invite links.
+   Open http://localhost:3000, enter the `ROOM_PIN` from `.env.local`, and either pick one of the
+   seeded fake members or create a new real person — same flow everyone else uses.
+
+## How getting in works
+
+There's no sign-up, no per-person link, no admin gate:
+
+1. **`/enter`** — type the 4-digit `ROOM_PIN`. Anyone who knows it gets into the room. This sets a
+   long-lived `stride_room` cookie on that device.
+2. **`/who`** — "who are you?" Pick an existing member's avatar, or tap **+ New person** to create
+   yourself (name + sticker avatar, no admin step). This sets the actual `stride_session` cookie
+   that identifies you going forward.
+3. From then on, that device goes straight to the leaderboard.
+
+**Why this also solves the iOS "installed app has separate storage" problem:** a home-screen web
+app's cookies are isolated from Safari's. With the old invite-link design this needed a whole
+pairing-code handoff. Now it doesn't matter — opening the freshly-installed icon just has no
+cookies yet, so it shows `/enter` again; you type the PIN (which you already know) and tap your
+own avatar from `/who` instead of recreating yourself. No code to transfer between contexts.
+
+Nobody is special — any signed-in member can open **Edit room** (the avatar button, top right) to
+rename themselves, change their sticker, flip their own notification toggles, and edit the shared
+room settings (daily goal, group goal, stakes). There's intentionally no separate admin role.
+
+## Structure, on purpose
+
+Per the brief, this is meant to feel like one stylized room, not an app with sections. The bottom
+bar has exactly two destinations — the leaderboard ("Board") and the activity feed — styled as a
+HUD, not a conventional tab bar. Everything else (your profile, notifications, room settings)
+lives in the slide-up **Edit room** sheet, not separate pages. Tapping anyone's row on the
+leaderboard (including your own) opens their profile: streak, crowns, badges, and a 30-day chart.
+
+## Badges
+
+Computed on the fly from existing step history (`src/lib/badges.ts`) — not a separate tracked
+table, since recomputing from `daily_steps` is cheap at this scale: 7-day streak, 14-day streak,
+20k Club (any 20k+ day), Crown Holder, Goal Getter (10+ goal days lifetime), Veteran (30+ logged
+days). Easy to extend — add an entry to `computeBadges` and it shows up everywhere badges render.
 
 ## Local dev tools
 
-- `/admin` — add members, generate invite links, regenerate tokens, edit the daily goal / group
-  goal / stake text. Gated by `ADMIN_SECRET` (a passphrase, not a full auth system — fine for 5
-  friends and one admin).
 - `/dev` — fires a real push notification (every copy variant, picked at random) to a chosen
   member so you can see exactly what lands on your phone, plus a link to preview the full-screen
-  weekly recap screen. Gated by the same admin cookie as `/admin`.
+  weekly recap screen. Needs a member session (any member, not a special role).
 - `npm run icons` — regenerates the placeholder PWA icons in `public/icons`. Swap in real artwork
   whenever; this script's only job was making the app installable on day one.
 
-## Onboarding a friend
+## About iOS Shortcut auto-sync (currently dormant)
 
-1. In `/admin`, add them (name, emoji, color, and source — `shortcut` for iPhone, `manual` for
-   Android) and copy their invite link. It's shown once; if it's lost, hit "New invite" to mint a
-   fresh one (invalidates the old one).
-2. Send them the link. Opening it in **Safari** (not the installed app, not Chrome) sets their
-   session and walks them through: Add to Home Screen → a pairing step → enabling notifications →
-   connecting their steps.
-3. **The iOS storage gotcha, and how this app handles it:** a home-screen web app has separate
-   cookie/storage from Safari, so the session set in Safari does *not* carry into the installed
-   app. The onboarding flow works around this with a one-time pairing code: after adding to the
-   Home Screen, `/pair` in Safari shows a 6-digit code (minted from the Safari session); opening
-   the installed app lands on `/pair` with no session, where that code is typed in to establish a
-   session *inside* the installed app. Notifications are then requested from inside the installed
-   app, where Web Push actually works on iOS (it does not work from a plain Safari tab — iOS
-   16.4+ only grants Push API access to installed, standalone-display PWAs).
-4. **iPhone (and the Garmin user, who syncs through Apple Health):** the last onboarding step
-   shows their personal bearer token and the ingestion URL (`/api/steps`), plus the exact steps to
-   build the Shortcut (see below) and a live "waiting for first sync…" indicator that turns green
-   automatically once their Shortcut POSTs real data.
-5. **Android:** the last step just explains manual logging; they'll get an evening push if they
-   haven't logged by then.
-
-### Building the iOS Shortcut (per iPhone user)
-
-Full click-by-click instructions (with the exact Shortcuts actions, the JSON body shape, and how
-to set up the silent "when Instagram is opened" automation) are provided interactively when you
-set this up — see the chat transcript from when this app was built. The short version, also shown
-in-app on the Shortcut setup screen:
-
-1. New shortcut → **Find Health Samples** (Steps, last 7 days, grouped by day).
-2. Build a JSON body shaped like `{"days":[{"date":"2026-01-01","steps":8123}, ...]}` from those
-   samples.
-3. **Get Contents of URL** → POST to `<your-deployed-url>/api/steps`, header
-   `Authorization: Bearer <their token>`.
-4. Automation tab → **+** → App → Instagram → Is Opened → run this shortcut, with **Ask Before
-   Running** and **Notify When Run** both off, so it runs silently.
-5. If they also wear a Garmin watch synced into Apple Health: watch for double-counted steps (both
-   the phone and the watch recording the same walk). Check the number against the iPhone's Health
-   app once after the first sync; if it's inflated, set a source priority in Health (Health app →
-   Steps → Data Sources & Access → reorder, or exclude the duplicate source) so only one source
-   counts.
-
-The ingestion endpoint is idempotent (upserts by member+date) and silently no-ops calls that land
-within 5 minutes of the last one, so firing it often (every time Instagram opens) is fine and
-expected — that's the intended design, not a bug.
+The original plan synced steps automatically via an iOS Shortcut triggered by a silent "when
+Instagram opens" personal automation, authenticated with a per-member bearer token
+(`src/lib/tokens.ts`, `POST /api/steps`). That ingestion endpoint still exists and still works —
+it's idempotent (upserts by member+date), silently no-ops calls within 5 minutes of the last one,
+and rejects future dates — but there's no UI flow to mint/display a token anymore, since
+onboarding was simplified down to just the PIN + picker. Reviving it means re-adding a screen that
+calls `createMember`/an equivalent to surface a raw token (see git history around the first
+onboarding wizard for the full Shortcut-building walkthrough and the exact Shortcuts actions used).
 
 ## Known limitations / things to revisit
 
-- **Personal automations re silence**: iOS's "Open App" personal automation supports running
-  fully silently (Ask Before Running + Notify When Run both off) as of iOS 18, which is what makes
-  the whole ingestion pipeline work without anyone ever opening Stride directly. If a future iOS
-  version tightens this, the fallback is: switch the automation trigger to a fixed daily time
-  instead of "app opened" (Shortcuts personal automations also support "Time of Day", which can
-  run silently too).
 - **Vercel Hobby cron is UTC-only and fires "within the hour", not at an exact minute.** The three
   cron times in `vercel.json` are hardcoded in UTC for **Europe/Rome summer time (CEST, UTC+2)**.
   When Rome switches to winter time (CET, UTC+1) — next around late October — the schedules will
@@ -127,6 +122,10 @@ expected — that's the intended design, not a bug.
 - **Placeholder app icons.** `public/icons` has a generated "S" wordmark so the PWA installs
   properly today; swap in real artwork whenever (`scripts/generate-icons.ts` shows how they were
   made, or just replace the PNGs directly — sizes are documented in `src/app/manifest.ts`).
+- **Trust-based room membership.** Anyone with the PIN can create a member, edit any room setting,
+  and (by design) there's no per-person password beyond "you tapped your own avatar." This is
+  intentional for 5 close friends ("drop the security") — don't reuse this pattern somewhere that
+  needs real access control.
 
 ## Tests
 
