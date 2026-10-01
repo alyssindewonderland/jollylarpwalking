@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# session-internal, not part of the project
+.claude/scheduled_tasks.lock
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
