@@ -73,16 +73,31 @@ room settings (daily goal, group goal, stakes). There's intentionally no separat
 
 Per the brief, this is meant to feel like one stylized room, not an app with sections. The bottom
 bar has exactly two destinations — the leaderboard ("Board") and the activity feed — styled as a
-HUD, not a conventional tab bar. Everything else (your profile, notifications, room settings)
-lives in the slide-up **Edit room** sheet, not separate pages. Tapping anyone's row on the
-leaderboard (including your own) opens their profile: streak, crowns, badges, and a 30-day chart.
+HUD, not a conventional tab bar. Everything else (your profile, notifications, room settings,
+milestones) lives in the slide-up **Edit room** sheet, not separate pages. The leaderboard itself
+is one graph with every member's bar sized to their actual steps (not just top 3) — tapping any
+avatar (including your own) opens that person's profile: streak, crowns, badges, and a 30-day
+chart.
 
-## Badges
+## Badges and milestones
 
-Computed on the fly from existing step history (`src/lib/badges.ts`) — not a separate tracked
-table, since recomputing from `daily_steps` is cheap at this scale: 7-day streak, 14-day streak,
-20k Club (any 20k+ day), Crown Holder, Goal Getter (10+ goal days lifetime), Veteran (30+ logged
-days). Easy to extend — add an entry to `computeBadges` and it shows up everywhere badges render.
+Two layers:
+
+- **Built-in badges** (`src/lib/badges.ts`) — computed on the fly from existing step history, not
+  a separate tracked table: 7-day streak, 14-day streak, 20k Club (any 20k+ day), Crown Holder,
+  Goal Getter (10+ goal days lifetime), Veteran (30+ logged days). Add an entry to `computeBadges`
+  and it shows up everywhere badges render.
+- **Custom milestones** (`milestones` table, managed from the "Milestones" section of **Edit
+  room** — any member can add or remove one, no admin role) — a name, a step threshold, a color,
+  and an optional time limit ("5k before noon"). These render as dotted, colored reference lines
+  on today's leaderboard graph and double as a badge on the profile of whoever's crossed them.
+  **The time-limit caveat, worth repeating**: we only keep one (possibly overwritten) step total
+  per day, not a timestamped history of every intermediate value, so a time-limited milestone
+  actually checks *when that day's number was last saved* (`daily_steps.updated_at`), not when the
+  steps physically happened. Someone who logs a single lump sum at 9pm will never satisfy "5k
+  before noon," even on a day they genuinely hit 5k by then. Precise mid-day tracking would need
+  recording every quick-log write as its own timestamped event instead of overwriting one row —
+  not built, since it's a bigger change than the feature currently calls for.
 
 ## Local dev tools
 

@@ -11,6 +11,7 @@ import {
 } from "@/lib/leaderboard";
 import { getSessionMemberId } from "@/lib/auth";
 import { getMemberById } from "@/lib/members";
+import { listMilestones } from "@/lib/milestones";
 import { todayKey } from "@/lib/timezone";
 import { Leaderboard, type LeaderboardRowData } from "@/components/Leaderboard";
 
@@ -39,7 +40,7 @@ async function buildPeriodData(
 
 export default async function HomePage() {
   const selfId = (await getSessionMemberId())!;
-  const [self, crownHolder, settingsRow, groupTotal, [todayRow], allMembers] = await Promise.all([
+  const [self, crownHolder, settingsRow, groupTotal, [todayRow], allMembers, milestoneRows] = await Promise.all([
     getMemberById(selfId),
     getCrownHolder(),
     db.select().from(settingsTable).then((r) => r[0]),
@@ -49,6 +50,7 @@ export default async function HomePage() {
       .from(dailySteps)
       .where(and(eq(dailySteps.memberId, selfId), eq(dailySteps.date, todayKey()))),
     db.select().from(members),
+    listMilestones(),
   ]);
 
   const dailyGoal = settingsRow?.dailyGoal ?? 8000;
@@ -113,7 +115,15 @@ export default async function HomePage() {
         </Link>
       )}
 
-      <Leaderboard data={{ today, week, month }} />
+      <Leaderboard
+        data={{ today, week, month }}
+        milestones={milestoneRows.map((m) => ({
+          id: m.id,
+          name: m.name,
+          thresholdSteps: m.thresholdSteps,
+          color: m.color,
+        }))}
+      />
     </div>
   );
 }

@@ -104,6 +104,19 @@ export const notificationLog = pgTable("notification_log", {
   sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// User-defined thresholds, shown as dotted reference lines on the steps graph and awarded
+// as badges on a member's profile once they've been crossed.
+export const milestones = pgTable("milestones", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  thresholdSteps: integer("threshold_steps").notNull(),
+  color: text("color").notNull().default("#22d3ee"),
+  // "HH:MM" in the group timezone, or null for no time limit. When set, a day only counts if
+  // that day's last save landed before this time -- see the caveat in lib/milestones.ts.
+  beforeTime: text("before_time"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const settings = pgTable("settings", {
   id: integer("id").primaryKey().default(1),
   timezone: text("timezone").notNull().default("Europe/Rome"),
@@ -118,3 +131,4 @@ export type NewMember = typeof members.$inferInsert;
 export type DailyStep = typeof dailySteps.$inferSelect;
 export type EventRow = typeof events.$inferSelect;
 export type Settings = typeof settings.$inferSelect;
+export type Milestone = typeof milestones.$inferSelect;

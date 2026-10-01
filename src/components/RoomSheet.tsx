@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MemberAvatar } from "@/components/MemberAvatar";
 import { StickerPicker } from "@/components/StickerPicker";
+import { MilestonesEditor } from "@/components/MilestonesEditor";
 
 type Member = { id: string; name: string; emoji: string; color: string };
 type Prefs = {
@@ -203,6 +204,8 @@ function RoomSheet({ member, onClose }: { member: Member; onClose: () => void })
               </button>
             </section>
           )}
+
+          <MilestonesEditor />
         </div>
       </div>
     </div>

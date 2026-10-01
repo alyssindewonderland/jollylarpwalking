@@ -5,9 +5,11 @@ import { getSessionMemberId } from "@/lib/auth";
 import { getMemberById } from "@/lib/members";
 import { getMemberHistory, getAllMemberSteps, getStreak, longestStreak, getCrownCounts } from "@/lib/leaderboard";
 import { computeBadges } from "@/lib/badges";
+import { listMilestones, getMemberStepsWithTimestamps, isMilestoneEarned } from "@/lib/milestones";
 import { MemberAvatar } from "@/components/MemberAvatar";
 import { StepsChart } from "@/components/StepsChart";
 import { BadgeRow } from "@/components/BadgeRow";
+import { MilestoneBadgeRow } from "@/components/MilestoneBadgeRow";
 
 export const dynamic = "force-dynamic";
 
@@ -20,11 +22,13 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
   const [settingsRow] = await db.select().from(settingsTable);
   const dailyGoal = settingsRow?.dailyGoal ?? 8000;
 
-  const [chartHistory, allHistory, currentStreak, crownCounts] = await Promise.all([
+  const [chartHistory, allHistory, currentStreak, crownCounts, milestoneDefs, timedHistory] = await Promise.all([
     getMemberHistory(memberId, 30),
     getAllMemberSteps(memberId),
     getStreak(memberId, dailyGoal),
     getCrownCounts(),
+    listMilestones(),
+    getMemberStepsWithTimestamps(memberId),
   ]);
 
   const crowns = crownCounts.get(memberId) ?? 0;
@@ -39,6 +43,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
     longestStreakDays: longestStreak(allHistory, dailyGoal),
     crownsWon: crowns,
   });
+  const milestoneBadges = milestoneDefs.map((m) => ({
+    id: m.id,
+    name: m.name,
+    color: m.color,
+    earned: isMilestoneEarned(m, timedHistory),
+  }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -63,6 +73,13 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
         <p className="font-medium">Badges</p>
         <BadgeRow badges={badges} />
       </section>
+
+      {milestoneBadges.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <p className="font-medium">Milestones</p>
+          <MilestoneBadgeRow badges={milestoneBadges} />
+        </section>
+      )}
 
       <div className="rounded-2xl border border-border bg-surface p-4">
         <p className="font-medium mb-3">Last 30 days</p>
