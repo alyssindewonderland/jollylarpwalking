@@ -1,7 +1,17 @@
+import Link from "next/link";
+import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
-import { settings as settingsTable } from "@/db/schema";
-import { getLeaderboard, getCrownHolder, getAllTimeGroupTotal, type Period } from "@/lib/leaderboard";
+import { settings as settingsTable, dailySteps } from "@/db/schema";
+import {
+  getLeaderboard,
+  getCrownHolder,
+  getAllTimeGroupTotal,
+  getStreak,
+  type Period,
+} from "@/lib/leaderboard";
 import { getSessionMemberId } from "@/lib/auth";
+import { getMemberById } from "@/lib/members";
+import { todayKey } from "@/lib/timezone";
 import { Leaderboard, type LeaderboardRowData } from "@/components/Leaderboard";
 
 export const dynamic = "force-dynamic";
@@ -23,11 +33,20 @@ async function buildPeriodData(period: Period, crownHolderId: string | null, sel
 
 export default async function HomePage() {
   const selfId = (await getSessionMemberId())!;
-  const [crownHolder, settingsRow, groupTotal] = await Promise.all([
+  const [self, crownHolder, settingsRow, groupTotal, [todayRow]] = await Promise.all([
+    getMemberById(selfId),
     getCrownHolder(),
     db.select().from(settingsTable).then((r) => r[0]),
     getAllTimeGroupTotal(),
+    db
+      .select()
+      .from(dailySteps)
+      .where(and(eq(dailySteps.memberId, selfId), eq(dailySteps.date, todayKey()))),
   ]);
+
+  const dailyGoal = settingsRow?.dailyGoal ?? 8000;
+  const hasLoggedToday = Boolean(todayRow);
+  const streak = await getStreak(selfId, dailyGoal);
 
   const [today, week, month] = await Promise.all([
     buildPeriodData("today", crownHolder?.id ?? null, selfId),
@@ -45,6 +64,29 @@ export default async function HomePage() {
         <p className="text-sm text-muted">Stride</p>
         <h1 className="font-display text-4xl leading-none mt-1">Leaderboard</h1>
       </header>
+
+      {!hasLoggedToday && self && (
+        <Link
+          href="/quick-log"
+          className="rounded-2xl p-5 flex items-center gap-4 animate-glow-pulse"
+          style={{
+            background: `linear-gradient(135deg, color-mix(in srgb, ${self.color} 28%, var(--surface)), var(--surface))`,
+            border: `1px solid color-mix(in srgb, ${self.color} 45%, var(--border))`,
+            ["--member-color" as string]: self.color,
+          }}
+        >
+          <span className="text-3xl">{self.emoji}</span>
+          <div className="flex-1">
+            <p className="font-medium">Log today&apos;s steps</p>
+            <p className="text-xs text-muted mt-0.5">
+              {streak > 0 ? `Keep your ${streak}-day streak going 🔥` : "Takes five seconds"}
+            </p>
+          </div>
+          <span className="font-display text-2xl" style={{ color: self.color }}>
+            →
+          </span>
+        </Link>
+      )}
 
       <Leaderboard data={{ today, week, month }} />
 

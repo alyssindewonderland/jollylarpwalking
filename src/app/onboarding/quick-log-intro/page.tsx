@@ -5,8 +5,8 @@ export default function QuickLogIntroPage() {
   return (
     <OnboardingShell
       step={3}
-      title="You're on manual logging"
-      subtitle="No Health app on Android, so it's one quick tap a day instead."
+      title="One tap a day"
+      subtitle="No background syncing to mess with — just log your steps once a day, takes five seconds."
     >
       <div className="flex-1 flex flex-col gap-5 items-center text-center justify-center">
         <div className="text-6xl">✍️</div>

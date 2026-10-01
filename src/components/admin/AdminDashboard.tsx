@@ -33,7 +33,7 @@ export function AdminDashboard() {
     name: "",
     emoji: "🙂",
     color: DEFAULT_COLORS[0],
-    source: "shortcut",
+    source: "manual",
   });
 
   async function loadMembers() {
@@ -62,7 +62,7 @@ export function AdminDashboard() {
     const data = await res.json();
     if (res.ok) {
       setNewInvite({ name: form.name, token: data.token });
-      setForm({ name: "", emoji: "🙂", color: DEFAULT_COLORS[members.length % DEFAULT_COLORS.length], source: "shortcut" });
+      setForm({ name: "", emoji: "🙂", color: DEFAULT_COLORS[members.length % DEFAULT_COLORS.length], source: "manual" });
       loadMembers();
     }
   }
@@ -111,7 +111,10 @@ export function AdminDashboard() {
             <div className="flex-1">
               <p className="font-medium">{m.name}</p>
               <p className="text-xs text-muted">
-                {m.source} · {m.lastSyncedAt ? `synced ${new Date(m.lastSyncedAt).toLocaleString()}` : "never synced"}
+                {m.source === "manual" ? "manual" : "auto-sync"} ·{" "}
+                {m.lastSyncedAt
+                  ? `last logged ${new Date(m.lastSyncedAt).toLocaleString()}`
+                  : "nothing logged yet"}
               </p>
             </div>
             <button
@@ -153,8 +156,8 @@ export function AdminDashboard() {
             onChange={(e) => setForm({ ...form, source: e.target.value as "shortcut" | "manual" })}
             className="bg-background border border-border rounded-xl px-3 py-2"
           >
-            <option value="shortcut">iPhone (Shortcut)</option>
-            <option value="manual">Android (manual)</option>
+            <option value="manual">Manual entry (recommended)</option>
+            <option value="shortcut">Auto-sync via iOS Shortcut (advanced)</option>
           </select>
           <button onClick={addMember} className="rounded-xl bg-accent text-accent-foreground font-medium py-2.5 cursor-pointer">
             Create + generate invite

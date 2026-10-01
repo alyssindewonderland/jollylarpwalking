@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
-import { dailySteps, members } from "@/db/schema";
+import { dailySteps, members, settings } from "@/db/schema";
 import { getSessionMemberId } from "@/lib/auth";
 import { todayKey, yesterdayKey } from "@/lib/timezone";
 import { evaluateAfterUpdate } from "@/lib/notifications/engine";
+import { getStreak } from "@/lib/leaderboard";
 
 const bodySchema = z.object({
   steps: z.number().int().min(0).max(100_000),
@@ -25,14 +26,18 @@ export async function POST(req: NextRequest) {
 
   const date = parsed.data.day === "today" ? todayKey() : yesterdayKey();
 
-  let beforeSteps = 0;
-  if (date === todayKey()) {
-    const [existing] = await db
+  const [[existing], historyRows, [groupSettings]] = await Promise.all([
+    db
       .select()
       .from(dailySteps)
-      .where(and(eq(dailySteps.memberId, memberId), eq(dailySteps.date, date)));
-    beforeSteps = existing?.steps ?? 0;
-  }
+      .where(and(eq(dailySteps.memberId, memberId), eq(dailySteps.date, date))),
+    db.select({ steps: dailySteps.steps, date: dailySteps.date }).from(dailySteps).where(eq(dailySteps.memberId, memberId)),
+    db.select().from(settings),
+  ]);
+
+  const beforeSteps = existing?.steps ?? 0;
+  const previousBest = Math.max(0, ...historyRows.filter((r) => r.date !== date).map((r) => r.steps));
+  const dailyGoal = groupSettings?.dailyGoal ?? 8000;
 
   await db
     .insert(dailySteps)
@@ -44,9 +49,17 @@ export async function POST(req: NextRequest) {
 
   await db.update(members).set({ lastSyncedAt: new Date() }).where(eq(members.id, memberId));
 
+  let newStreak = 0;
   if (date === todayKey()) {
     await evaluateAfterUpdate(memberId, beforeSteps, parsed.data.steps);
+    newStreak = await getStreak(memberId, dailyGoal);
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    metGoal: parsed.data.steps >= dailyGoal,
+    isPersonalBest: parsed.data.steps > previousBest && parsed.data.steps > 0,
+    streak: newStreak,
+    dailyGoal,
+  });
 }
